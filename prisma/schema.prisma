@@ -8,13 +8,13 @@ datasource db {
 }
 
 model User {
-  id       String      @id  
+  id       String      @id @default(uuid()) 
   name     String
-  age      Int
+  age      Int?
   location String?
   gender  String?
   email    String   @unique
-  mobile   Int      @unique
+  mobile   String      @unique
   password String
   parentId Int?
   parentName String?
