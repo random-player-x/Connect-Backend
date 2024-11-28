@@ -7,3 +7,19 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id       String      @id  
+  name     String
+  age      Int
+  location String?
+  gender  String?
+  email    String   @unique
+  mobile   Int      @unique
+  password String
+  parentId Int?
+  parentName String?
+  imageUrl String[]  @default([])
+  videoUrl String[]   @default([])
+  avatarIds String[]  @default([])
+  createdAt DateTime @default(now())
+}
