@@ -1,4 +1,3 @@
-import { UploadOnSupabase } from '../utils/upload.utils.js';
 import { UploadOnSupabase,handleDelete } from '../utils/upload.utils.js';
 import { prisma } from '../prisma/prisma.js';
 import bcrypt from 'bcrypt';
@@ -14,7 +13,6 @@ const validateFields = (fields, res) => {
     }
     return true;
 };
-/////////////////////////
 
 export const AvatarSignup = async (req, res) => {
     const { name, mobile, password } = req.body;
@@ -140,27 +138,58 @@ export const updateAvatar = async (res,req) => {
 }
 
 export const uploadAvatarPhoto = async (req, res) => {
+    const id = req.id; 
+    const { type } = req.params; 
+    const filePath = req.file?.path; 
 
-    const id = req.id;
-    const {type} = req.params;
-    const filePath =   req.file?.path;
-
+    // Validate required fields
     if (!type || !filePath || !id) {
-        return res.status(400).json({ error: "Media Type and Media Url are required" });
+        return res.status(400).json({ error: "Media type, file path, and user ID are required" });
     }
 
     try {
+        // Upload the image to Supabase (or any storage solution you're using)
+        const url = await UploadOnSupabase(filePath, 'Avatar', id, type);
 
-        const url = await UploadOnSupabase(filePath, 'Avatar', id , type);
-
-        if(!url){
-            return res.status(400).json({ error: "Media not uploaded" });
+        // Check if the upload was successful
+        if (!url) {
+            return res.status(400).json({ error: "Failed to upload media" });
         }
 
-        res.status(201).json({ url});
-    } catch (error) {
-        console.log(error);
-        res.status(500).json({ error: error });
-    }
-}
+        // Update the user's avatar record in the database
+        const updatedAvatar = await prisma.avatar.upsert({
+            where: { id: id }, 
+            update: { profileImage: url }, 
+            create: { id: id, profileImage: url }, // Create a new avatar record if it doesn't exist
+        });
 
+        // Respond with the updated avatar URL
+        return res.status(201).json({ imageUrl: updatedAvatar.profileImage });
+    } catch (error) {
+        console.error("Error uploading avatar:", error);
+        return res.status(500).json({ error: "Internal server error" });
+    }
+};
+
+export const getMediaUrl = async (req, res) => {
+    const id = req.id;
+
+    if (!id) {
+        return res.status(400).json({ error: "User not authorized" });
+    }
+
+    try {
+        const avatar = await prisma.avatar.findUnique({
+            where: { id: id },
+        });
+
+        if (!avatar || !avatar.profileImage) {
+            return res.status(404).json({ error: "Avatar not found" });
+        }
+
+        return res.status(200).json({ imageUrl: avatar.profileImage });
+    } catch (error) {
+        console.error("Error fetching avatar URL:", error);
+        return res.status(500).json({ error: "Internal server error" });
+    }
+};
