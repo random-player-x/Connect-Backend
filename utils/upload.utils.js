@@ -10,7 +10,6 @@ const supabaseKey = process.env.SUPABASE_KEY;
 dotenv.config();
 
 // Function to Upload media on Supabase
-
 const UploadOnSupabase = async (filePath, bucketName, folder, type) => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
@@ -61,33 +60,6 @@ const UploadOnSupabase = async (filePath, bucketName, folder, type) => {
         }
     }
 };
-
-// Function to handle media upload
-// const handleUpload = async (filePath,bucketName,folder,type) => {
-
-    
-//     if (!filePath) {
-//         console.log('Media not found');
-//         return null;
-//     }
-
-//     try {
-//         const url = await UploadOnSupabase(filePath, bucketName,folder,type);
-
-//         if (!url) {
-//             console.log('Error occurred while uploading image');
-//             return null; // Set url to null if upload fails
-//         } else {
-//           return url
-//         }
-//     } catch (error) {
-//         console.error('Error during image upload:', error);
-//         return null;
-//     }
-
-
-// };
-
 
 // Function to handle media delete
 const handleDelete = async (fileUrl, bucketName, folder, type) => {

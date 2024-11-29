@@ -21,5 +21,8 @@ model User {
   imageUrl String[]  @default([])
   videoUrl String[]   @default([])
   avatarIds String[]  @default([])
+  totalActiveDays Int? @default(0)
+  dailyActiveHours Int? @default(0)
+  totalActiveHours Int? @default(0)
   createdAt DateTime @default(now())
 }

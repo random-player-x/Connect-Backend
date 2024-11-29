@@ -1,17 +1,58 @@
 import { prisma } from "../prisma/prisma.js"
 import bcrypt from 'bcrypt';
-import { generateAccessToken } from "../utils/jwt.js";
+import { generateAccessToken,generateRefreshToken } from "../utils/jwt.js";
 import { handleDelete, UploadOnSupabase } from "../utils/upload.utils.js";
 
-const UserID = 10000000;
+// Scheduling Function to set the dailyActiveHour of All User to zero 
+export const scheduleAtMidnight = async () => {
+
+    console.log("Scheduling at midnight");
+    
+    const users = await prisma.user.findMany();
+
+    if (!users) {
+        return;
+    }
+
+    
+
+    for (let user of users) {
+
+        console.log(user);
+        
+        const updatedUser = await prisma.user.update({
+            where: { id: user.id },
+            data: {
+                totalActiveHours: user.dailyActiveHours > 0 ? user.totalActiveHours + user.dailyActiveHours : user.totalActiveHours,
+                totalActiveDays: user.dailyActiveHours > 0 ? user.totalActiveDays + 1 : user.totalActiveDays,
+                dailyActiveHours: 0
+            }
+        });
+
+        if (!updatedUser) {
+            console.log(`Error while updating user ${user.id}`);
+        }
+    }
+}
+
+
+// remember to store it in db otherwise it will get again start from this value when server restarts & will give prisma error due to unique constraint
+let currentUID = 10000000; 
+
+
+// Function to generate UID
+function generateUID() {
+    currentUID++;
+    return `U${currentUID}`;
+}
 
 // Controller For Siging-up user
 export const createUser = async (req, res) => {
-
+   
+    
 
     const { name, email, password, mobile } = req.body;
 
-    // const id = `U${UserID+1}`;
 
     if (!name || !email || !password || !mobile) {
         return res.status(400).json({ error: "All fields are required" });
@@ -32,11 +73,13 @@ export const createUser = async (req, res) => {
 
 
     const hashedPassword = await bcrypt.hash(password, 10);
-
+    
+    const id = generateUID();
 
     try {
         const newUser = await prisma.user.create({
             data: {
+                id,
                 name,
                 email,
                 password: hashedPassword,
@@ -131,24 +174,27 @@ export const updateUser = async (req, res) => {
         return res.status(404).json({ error: "User not found" });
     }
 
-    if (password) {
-        const hashedPassword = await bcrypt.hash(password, 10);
+
+    const hashedPassword = password && await bcrypt.hash(password, 10);
+
+
+    const newData = {
+        name: name || existingUser.name,
+        email: email || existingUser.email,
+        password: hashedPassword || existingUser.password,
+        mobile: mobile || existingUser.mobile,
+        age: age || existingUser.age,
+        gender: gender || existingUser.gender,
+        location: location || existingUser.location,
+        parentName: parentName || existingUser.parentName,
+
     }
+
 
     try {
         const updatedUser = await prisma.user.update({
-            where: { id: parseInt(id) },
-            data: {
-                name,
-                email,
-                password: hashedPassword,
-                mobile,
-                age,
-                gender,
-                location,
-                parentId,
-                parentName,
-            }
+            where: { id },
+            data: newData
         });
         res.status(200).json({ user: updatedUser });
     } catch (error) {
@@ -163,21 +209,21 @@ export const uploadMedia = async (req, res) => {
     const id = req.id;
     const { type } = req.params;
     const filePath = req.file?.path;
-    
-    
+
+
     if (!type || !filePath || !id) {
         return res.status(400).json({ error: "Media Type and Media Url are required" });
     }
-    
+
     if (type !== "image" && type !== "video") {
         return res.status(400).json({ error: "Invalid Media Type" });
     }
-    
+
     const field = `${type}Url`;
 
     try {
 
-        
+
         const user = await prisma.user.findUnique({
             where: { id: id }
         });
@@ -202,9 +248,9 @@ export const uploadMedia = async (req, res) => {
         const updatedUser = await prisma.user.update({
             where: { id: id },
             data: {
-            [field]: {
-                push: url
-            }
+                [field]: {
+                    push: url
+                }
             }
         });
 
@@ -237,7 +283,7 @@ export const getMediaUrl = async (req, res) => {
         return res.status(400).json({ error: "User Id is required" });
     }
 
-      const field = `${type}Url`;
+    const field = `${type}Url`;
 
     try {
         const getTypeUrl = await prisma.user.findUnique({
@@ -250,8 +296,8 @@ export const getMediaUrl = async (req, res) => {
         }
 
         const urls = getTypeUrl[field];
-        if(urls.length === 0){
-            return res.status(404).json({ error: "No url Found"})
+        if (urls.length === 0) {
+            return res.status(404).json({ error: "No url Found" })
         }
 
         res.status(200).json(urls);
@@ -304,12 +350,48 @@ export const deleteMediaUrl = async (req, res) => {
 
         const deleteinBucket = await handleDelete(url, 'User', id, type);
 
-        if(!deleteinBucket){
+        if (!deleteinBucket) {
             return res.status(400).json({ error: "Error While Deleting the media" });
         }
 
-        res.status(200).json({ updatedUser});
+        res.status(200).json({ updatedUser });
     } catch (error) {
         console.log(error);
         res.status(500).json({ error: error });
-    }}
+    }
+}
+
+// Controller For Updating daily Active Hours with token
+export const updatedailyActiveHours = async (req, res) => {
+
+    const id = req.id;
+    const { dailyActiveHours } = req.body;
+
+    if (!dailyActiveHours || dailyActiveHours < 0 || dailyActiveHours > 24) {
+        return res.status(400).json({ error: "Daily Active Hours are required" });
+    }
+
+    try {
+        const user = await prisma.user.findUnique({
+            where: { id: id }
+        });
+
+        if (!user) {
+            return res.status(404).json({ error: "User not found" });
+        }
+
+        const updatedUser = await prisma.user.update({
+            where: { id: id },
+            data: {
+                dailyActiveHours:  user.dailyActiveHours + dailyActiveHours
+            }
+        });
+
+        res.status(200).json({ user: updatedUser.dailyActiveHours });
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ error: error });
+    }
+
+
+}
