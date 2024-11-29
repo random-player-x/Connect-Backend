@@ -1,11 +1,11 @@
 import { prisma } from "../prisma/prisma.js"
 import bcrypt from 'bcrypt';
 import { generateAccessToken } from "../utils/jwt.js";
-import {handleUpload,getAllFileUrls} from "../utils/upload.utils.js";
+import { handleDelete, UploadOnSupabase } from "../utils/upload.utils.js";
 
 const UserID = 10000000;
 
-
+// Controller For Siging-up user
 export const createUser = async (req, res) => {
 
 
@@ -56,6 +56,7 @@ export const createUser = async (req, res) => {
 
 }
 
+// Controller For Login user
 export const loginUser = async (req, res) => {
     const { mobile, password } = req.body;
 
@@ -77,7 +78,7 @@ export const loginUser = async (req, res) => {
         if (!isPasswordValid) {
             return res.status(400).json({ error: "Invalid mobile or password" });
         }
-       
+
         const token = generateAccessToken({ id: user.id });
 
         res.status(200).json({ token: token });
@@ -87,14 +88,15 @@ export const loginUser = async (req, res) => {
     }
 }
 
+// Controller For Getting User with token
 export const getUser = async (req, res) => {
-    
-    const id  = req.id;
-    
 
-    if(!id){
-        return res.status(400).json({error: "UserId  not decoded"});
-    }   
+    const id = req.id;
+
+
+    if (!id) {
+        return res.status(400).json({ error: "UserId  not decoded" });
+    }
 
     try {
         const user = await prisma.user.findUnique({
@@ -112,8 +114,9 @@ export const getUser = async (req, res) => {
     }
 }
 
+// Controller For Updating User with token
 export const updateUser = async (req, res) => {
-    const id  = req.id;
+    const id = req.id;
     const { name, email, password, mobile, age, gender, location, parentId, parentName } = req.body;
 
     if (!name && !email && !password && !mobile && !age && !gender && !location && !parentId && !parentName) {
@@ -154,54 +157,159 @@ export const updateUser = async (req, res) => {
     }
 }
 
-
+// Controller For Uploading Media with token
 export const uploadMedia = async (req, res) => {
 
     const id = req.id;
-    const {type} = req.params;
-    const filePath =   req.file?.path;
-
+    const { type } = req.params;
+    const filePath = req.file?.path;
+    
+    
     if (!type || !filePath || !id) {
         return res.status(400).json({ error: "Media Type and Media Url are required" });
     }
+    
+    if (type !== "image" && type !== "video") {
+        return res.status(400).json({ error: "Invalid Media Type" });
+    }
+    
+    const field = `${type}Url`;
 
     try {
 
-        const url = await handleUpload(filePath, 'User', id , type);
+        
+        const user = await prisma.user.findUnique({
+            where: { id: id }
+        });
 
-        if(!url){
+        if (!user) {
+            return res.status(404).json({ error: "User not found" });
+        }
+
+        const url = await UploadOnSupabase(filePath, 'User', id, type);
+
+        if (!url) {
             return res.status(400).json({ error: "Media not uploaded" });
         }
 
-      
 
-        res.status(201).json({ url});
+
+
+        if (user[field] && user[field].includes(url)) {
+            return res.status(400).json({ error: "File already exists" });
+        }
+
+        const updatedUser = await prisma.user.update({
+            where: { id: id },
+            data: {
+            [field]: {
+                push: url
+            }
+            }
+        });
+
+
+        if (!updatedUser) {
+            return res.status(400).json({ error: "Error While Updating the user" });
+        }
+
+
+
+        res.status(201).json({ updatedUser });
     } catch (error) {
         console.log(error);
         res.status(500).json({ error: error });
     }
 
-    
+
 }
 
+// Controller For Getting Media Url with token
 export const getMediaUrl = async (req, res) => {
     const id = req.id;
-    const {type} = req.params;
+    const { type } = req.params;
+
+    if (type !== "image" && type !== "video") {
+        return res.status(400).json({ error: "Invalid Media Type" });
+    }
 
     if (!id) {
         return res.status(400).json({ error: "User Id is required" });
     }
 
-    try {
-        const imagesURL = await getAllFileUrls('User', id, type);
+      const field = `${type}Url`;
 
-        if (!imagesURL) {
-            return res.status(400).json({ error: "Images not found" });
+    try {
+        const getTypeUrl = await prisma.user.findUnique({
+            where: { id },
+            select: { [field]: true }
+        });
+
+        if (!getTypeUrl) {
+            return res.status(400).json({ error: "No url found" });
         }
 
-        res.status(200).json({  imagesURL });
+        const urls = getTypeUrl[field];
+        if(urls.length === 0){
+            return res.status(404).json({ error: "No url Found"})
+        }
+
+        res.status(200).json(urls);
     } catch (error) {
         console.log(error);
         res.status(500).json({ error: error });
     }
 }
+
+// Controller For Deleting Media Url with token
+export const deleteMediaUrl = async (req, res) => {
+
+    const id = req.id;
+    const { type } = req.params;
+    const { url } = req.body;
+
+    if (type !== "image" && type !== "video") {
+        return res.status(400).json({ error: "Invalid Media Type" });
+    }
+
+    if (!id || !url) {
+        return res.status(400).json({ error: "User Id and Media Url are required" });
+    }
+
+    const field = `${type}Url`;
+
+    try {
+
+        const user = await prisma.user.findUnique({
+            where: { id: id }
+        });
+
+        if (!user) {
+            return res.status(404).json({ error: "User not found" });
+        }
+
+        const updatedUser = await prisma.user.update({
+            where: { id: id },
+            data: {
+                [field]: {
+                    set: user[field].filter((media) => media !== url)
+                }
+            }
+        });
+
+        if (!updatedUser) {
+            return res.status(400).json({ error: "Error While Updating the user" });
+        }
+
+
+        const deleteinBucket = await handleDelete(url, 'User', id, type);
+
+        if(!deleteinBucket){
+            return res.status(400).json({ error: "Error While Deleting the media" });
+        }
+
+        res.status(200).json({ updatedUser});
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ error: error });
+    }}

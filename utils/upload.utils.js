@@ -9,14 +9,19 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 dotenv.config();
 
+// Function to Upload media on Supabase
+
 const UploadOnSupabase = async (filePath, bucketName, folder, type) => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    if (!filePath) {console.log('Media not found');}
+    if(!bucketName || !folder || !type) {console.log('Bucket Name, Folder and Type are required');}
+
     const fileName = path.basename(filePath);
     const mimeType = mime.lookup(filePath) || 'application/octet-stream'; // Fallback MIME type
     const fileBuffer = fs.readFileSync(filePath);
-
+   
 
     try {
         const { data, error } = await supabase.storage
@@ -44,6 +49,7 @@ const UploadOnSupabase = async (filePath, bucketName, folder, type) => {
         // console.log(link.data.publicUrl);
         return link.data.publicUrl;
 
+
     } catch (error) {
         console.error('Unexpected error:', error.message);
         return null;
@@ -56,68 +62,55 @@ const UploadOnSupabase = async (filePath, bucketName, folder, type) => {
     }
 };
 
+// Function to handle media upload
+// const handleUpload = async (filePath,bucketName,folder,type) => {
 
-const handleUpload = async (filePath,bucketName,folder,type) => {
     
-    console.log(filePath);
-    console.log(bucketName);
-    console.log(folder);
-    
+//     if (!filePath) {
+//         console.log('Media not found');
+//         return null;
+//     }
 
-    if (!filePath) {
-        console.log('Media not found');
-        return null;
-    }
+//     try {
+//         const url = await UploadOnSupabase(filePath, bucketName,folder,type);
 
-    try {
-        const url = await UploadOnSupabase(filePath, bucketName,folder,type);
-
-        if (!url) {
-            console.log('Error occurred while uploading image');
-            return null; // Set url to null if upload fails
-        } else {
-          return url
-        }
-    } catch (error) {
-        console.error('Error during image upload:', error);
-        return null;
-    }
+//         if (!url) {
+//             console.log('Error occurred while uploading image');
+//             return null; // Set url to null if upload fails
+//         } else {
+//           return url
+//         }
+//     } catch (error) {
+//         console.error('Error during image upload:', error);
+//         return null;
+//     }
 
 
-};
+// };
 
 
-const getAllFileUrls = async (bucketName, folder, type) => {
-   
+// Function to handle media delete
+const handleDelete = async (fileUrl, bucketName, folder, type) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    try {
-         
-        console.log(bucketName,folder,type);
-        
+    // Extract the file name from the URL
+    const fileName = path.basename(fileUrl);
 
+    try {
         const { data, error } = await supabase.storage
             .from(bucketName)
-            .list(`${folder}/${type}`, { limit: 100 });
+            .remove([`${folder}/${type}/${fileName}`]);
 
         if (error) {
-            console.error('Error fetching file list:', error);
-            return null;
+            console.error('Delete error:', error.message);
+            return false;
         }
 
-        const fileUrls = data.map(file => {
-            const { publicURL } = supabase.storage
-                .from(bucketName)
-                .getPublicUrl(`${folder}/${type}/${file.name}`);
-            return publicURL;
-        });
-          
-        console.log(fileUrls);
-        
-        return fileUrls;
+        return true;
     } catch (error) {
-        console.error('Unexpected error:', error);
-        return null;
+        console.error('Unexpected error during delete:', error.message);
+        return false;
     }
 };
-export  {handleUpload,getAllFileUrls};
+
+export  {UploadOnSupabase,handleDelete};
