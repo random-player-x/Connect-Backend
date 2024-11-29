@@ -1,10 +1,14 @@
-const express = require('express')
-const router = express.Router()
-const avatarController = require('../controllers/avatar.controller')
-const authmiddleware = require('../controllers/middlewares')
+import express from "express"
+import { AvatarSignup, AvatarLogin, getAvatar, updateAvatar, uploadAvatarPhoto } from "../controllers/avatar.controller.js";
+import auth  from "../middleware/userAuth.middleware.js";
+import { upload } from "../middleware/multer.middelware.js"
 
-router.post('/signup', avatarController.AvatarSignup)
-router.post('/login', avatarController.AvatarLogin)
-router.post('/registration',authmiddleware, avatarController.AvatarRegistration)
+const router = express.Router();
 
-module.exports = router
+router.route("/signup").post(AvatarSignup);
+router.route("/login").post(AvatarLogin);
+router.route("/update").post(auth,updateAvatar);
+router.route("/get").get(auth,getAvatar);
+router.route("/upload").post(auth,upload.single("media"),uploadAvatarPhoto);
+
+export default router

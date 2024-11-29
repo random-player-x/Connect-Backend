@@ -1,7 +1,9 @@
-import { prisma } from '../prisma/client.js';
-const jwt = require('jsonwebtoken');
+import { handleUpload } from '../utils/upload.utils.js';
+import { prisma } from '../prisma/prisma.js';
+import bcrypt from 'bcrypt';
+import { generateAccessToken } from "../utils/jwt.js";
 
-// Utility function for validation
+
 const validateFields = (fields, res) => {
     for (const [key, value] of Object.entries(fields)) {
         if (!value) {
@@ -11,18 +13,8 @@ const validateFields = (fields, res) => {
     }
     return true;
 };
+/////////////////////////
 
-// Function to generate custom Avatar ID
-const generateAvatarId = async () => {
-    const lastCounter = await prisma.idCounter.upsert({
-        where: { model: 'Avatar' },
-        update: { lastId: { increment: 1 } },
-        create: { model: 'Avatar', lastId: 1000000 },
-    });
-    return `A${(lastCounter.lastId).toString().padStart(8, '0')}`;
-};
-
-// Avatar Signup
 export const AvatarSignup = async (req, res) => {
     const { name, mobile, password } = req.body;
 
@@ -30,34 +22,31 @@ export const AvatarSignup = async (req, res) => {
     if (!validateFields({ name, mobile, password }, res)) return;
 
     try {
-        const existingAvatar = await prisma.avatar.findUnique({
-            where: { mobile },
+        const existingUser = await prisma.user.findFirst({
+            where: {
+                mobile: mobile
+            }
         });
-
-        if (existingAvatar) {
-            return res.status(409).json({ error: 'Avatar already exists' });
+    
+        if (existingUser) {
+            return res.status(400).json({ error: "Email or mobile number already exists" });
         }
-        const token = jwt.sign({ mobile }, process.env.JWT_SECRET);
+        const hashedPassword = await bcrypt.hash(password, 10);
 
-        const id = await generateAvatarId();
         const newAvatar = await prisma.avatar.create({
             data: {
-                id,
                 name,
                 mobile,
-                password,
+                password: hashedPassword,
             },
         });
 
-        res.status(201).json({
-            message: 'Avatar created successfully',
-            avatar: {
-                id: newAvatar.id,
-                name: newAvatar.name,
-                mobile: newAvatar.mobile,
-            },
-            token : token
-        });
+        if (!newAvatar) {
+            return res.status(400).json({ error: "avatar not created" });
+        }
+
+        res.status(201).json({ "avatar": { ...newAvatar, token: generateAccessToken({ id: newAvatar.id }) } });
+
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Error creating avatar' });
@@ -77,77 +66,31 @@ export const AvatarLogin = async (req, res) => {
         });
 
         if (!avatar) {
-            return res.status(404).json({ error: 'Avatar does not exist' });
+            return res.status(404).json({ error: 'Invalid Mobile' });
         }
+        const passwordMatch = await bcrypt.compare(password, avatar.password);
 
-        if (avatar.password !== password) {
+        if (!passwordMatch) {
             return res.status(401).json({ error: 'Invalid password' });
         }
-        const token = jwt.sign({ mobile }, process.env.JWT_SECRET);
 
         res.status(200).json({
-            message: 'Avatar logged in successfully',
-            avatar: {
-                id: avatar.id,
-                name: avatar.name,
-                mobile: avatar.mobile,
-            },
-            token : token
+
+            "token": generateAccessToken({ id: avatar.id }),
         });
     } catch (error) {
         console.error(error);
-        res.status(500).json({ error: 'Error logging in avatar' });
+        res.status(500).json({ error: error });
     }
 };
-
-// Avatar Registration
-export const AvatarRegistration = async (req, res) => {
-    const { id, email, profileImage } = req.body;
-
-    // Validate required fields
-    if (!validateFields({ id, email, profileImage }, res)) return;
-
-    try {
-        const existingAvatar = await prisma.avatar.findUnique({
-            where: { id },
-        });
-
-        if (!existingAvatar) {
-            return res.status(404).json({ error: 'Avatar does not exist' });
-        }
-
-        const updatedAvatar = await prisma.avatar.update({
-            where: { id },
-            data: { email, profileImage },
-        });
-
-        res.status(200).json({
-            message: 'Avatar registered successfully',
-            avatar: {
-                id: updatedAvatar.id,
-                email: updatedAvatar.email,
-                profileImage: updatedAvatar.profileImage,
-            },
-        });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Error registering avatar' });
+export const getAvatar = async (res,req) => {
+    const id = req.id;
+    if (!id) {
+        return res.status(400).json({ error: 'Avatar ID not decoded' });
     }
-};
-
-const getAvatar = async (res,req) => {
-    const avatarID = req.params.id;
     try {
         const avatar = await prisma.avatar.findUnique({
-            where: { id: avatarID },
-            select: {
-                id: true,
-                name: true,
-                mobile: true,
-                email: true,
-                profileImage: true,
-                type:true,
-            },
+            where: { id: id },
         });
 
         if (!avatar) {
@@ -158,5 +101,64 @@ const getAvatar = async (res,req) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Error fetching avatar' });
+    }
+}
+
+export const updateAvatar = async (res,req) => {
+    const id = req.id;
+    const {name, mobile, password, email, profileImage } = req.body;
+
+    if (!name && !mobile && !password && !email && !profileImage) {
+        return res.status(400).json({ error: 'At least one field is required to update' });
+    }
+
+    try {
+        const existingAvatar = await prisma.avatar.findUnique({
+            where: { id: id },
+        });
+
+        if (!existingAvatar) {
+            return res.status(404).json({ error: 'Avatar not found' });
+        }
+
+        const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
+
+        const updatedAvatar = await prisma.avatar.update({
+            where: { id: id },
+            data: {name, mobile, hashedPassword, email, profileImage },
+        });
+
+        res.status(200).json({
+            message: 'Avatar updated successfully',
+            updatedAvatar,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Error updating avatar' });
+    }
+}
+
+export const uploadAvatarPhoto = async (req, res) => {
+
+    const id = req.id;
+    const {type} = req.params;
+    const filePath =   req.file?.path;
+
+    if (!type || !filePath || !id) {
+        return res.status(400).json({ error: "Media Type and Media Url are required" });
+    }
+
+    try {
+
+        const url = await handleUpload(filePath, 'Avatar', id , type);
+
+        if(!url){
+            return res.status(400).json({ error: "Media not uploaded" });
+        }
+
+        res.status(201).json({ url});
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ error: error });
     }
 }

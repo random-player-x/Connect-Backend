@@ -1,16 +1,19 @@
-// import * as dotenv from 'dotenv'rs
-// dotenv.config()
 import express from 'express'
-const app = express()
-
-import avatarRoutes from './routes/avatar.routes'
-
 import cors from 'cors'
+const app = express()
+const port = process.env.PORT || 3000
 app.use(cors())
 app.use(express.json())
-const port = process.env.PORT || 3000
+app.get('/', (req, res) => {res.send('Connect')})
+    
+import UserRouter from "./routes/user.routes.js"
+import AvatarRouter from "./routes/avatar.routes.js"
 
-app.use('/api/avatar', avatarRoutes)
+app.use('/user', UserRouter);
+
+
+app.use('/avatar', AvatarRouter);
+
 
 app.listen(port, () => {
     console.log(`App listening on port ${port}`)
