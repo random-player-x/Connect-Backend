@@ -1,4 +1,5 @@
 import { UploadOnSupabase } from '../utils/upload.utils.js';
+import { UploadOnSupabase,handleDelete } from '../utils/upload.utils.js';
 import { prisma } from '../prisma/prisma.js';
 import bcrypt from 'bcrypt';
 import { generateAccessToken } from "../utils/jwt.js";
@@ -162,3 +163,4 @@ export const uploadAvatarPhoto = async (req, res) => {
         res.status(500).json({ error: error });
     }
 }
+

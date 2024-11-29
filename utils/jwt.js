@@ -12,4 +12,14 @@ export const generateAccessToken = function (payload) {
         {
             expiresIn: process.env.ACCESS_TOKEN_EXPIRY
         }
-    )}
+)}
+
+export const generateRefreshToken = function (payload) {
+    return jwt.sign(
+        { payload },
+        process.env.REFRESH_TOKEN_SECRET,
+        {
+            expiresIn: process.env.REFRESH_TOKEN_EXPIRY
+        }
+    );
+}
