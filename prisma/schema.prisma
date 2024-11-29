@@ -8,18 +8,18 @@ datasource db {
 }
 
 model Avatar {
-  id           String   @id
+  id           String  @id @default(cuid())
   name         String
-  mobile       String
-  password     String
-  type         String
+  mobile       String  @unique
+  password     String 
+  type         String?
   createdAt    DateTime @default(now())
-  email        String
-  profileImage String
+  email        String?  @unique
+  profileImage String?
 }
 
 model User {
-  id       String      @id @default(uuid()) 
+  id       String   @id @default(uuid()) 
   name     String
   age      Int?
   location String?

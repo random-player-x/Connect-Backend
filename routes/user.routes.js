@@ -3,7 +3,6 @@ import { createUser,loginUser,getUser,updateUser,uploadMedia,getMediaUrl,deleteM
 import auth  from "../middleware/userAuth.middleware.js";
 import { upload } from "../middleware/multer.middelware.js"
 
-
 const router = express.Router();
 
 router.route("/signup").post(createUser);
