@@ -1,4 +1,0 @@
--- AlterTable
-ALTER TABLE "Avatar" ALTER COLUMN "type" DROP NOT NULL,
-ALTER COLUMN "email" DROP NOT NULL,
-ALTER COLUMN "profileImage" DROP NOT NULL;

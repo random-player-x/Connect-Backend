@@ -1,4 +1,4 @@
-import { handleUpload } from '../utils/upload.utils.js';
+import { UploadOnSupabase,handleDelete } from '../utils/upload.utils.js';
 import { prisma } from '../prisma/prisma.js';
 import bcrypt from 'bcrypt';
 import { generateAccessToken } from "../utils/jwt.js";
@@ -13,7 +13,6 @@ const validateFields = (fields, res) => {
     }
     return true;
 };
-/////////////////////////
 
 export const AvatarSignup = async (req, res) => {
     const { name, mobile, password } = req.body;
@@ -150,7 +149,7 @@ export const uploadAvatarPhoto = async (req, res) => {
 
     try {
 
-        const url = await handleUpload(filePath, 'Avatar', id , type);
+        const url = await UploadOnSupabase(filePath, 'Avatar', id , type);
 
         if(!url){
             return res.status(400).json({ error: "Media not uploaded" });
