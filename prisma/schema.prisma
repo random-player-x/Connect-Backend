@@ -7,8 +7,19 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Avatar {
+  id           String  @id @default(cuid())
+  name         String
+  mobile       String  @unique
+  password     String 
+  type         String?
+  createdAt    DateTime @default(now())
+  email        String?  @unique
+  profileImage String?
+}
+
 model User {
-  id       String      @id @default(uuid()) 
+  id       String   @id @default(uuid()) 
   name     String
   age      Int?
   location String?
