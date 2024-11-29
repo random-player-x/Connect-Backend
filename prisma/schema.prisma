@@ -10,11 +10,11 @@ datasource db {
 model Avatar {
   id           String   @id
   name         String
-  mobile       String
-  password     String
+  mobile       String  @unique
+  password     String 
   type         String
   createdAt    DateTime @default(now())
-  email        String
+  email        String  @unique
   profileImage String
 }
 
